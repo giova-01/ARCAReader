@@ -1,7 +1,7 @@
 # backend/tests/test_ingest.py
 import io
 
-import fitz
+import pymupdf as fitz
 from PIL import Image, ImageDraw
 
 from app.pipeline.ingest import ingest_document
@@ -65,6 +65,11 @@ def test_image_runs_ocr():
 def test_blank_image_is_unreadable():
     img_bytes = _make_blank_image_bytes()
     result = ingest_document(img_bytes, "blank.png")
+    # Assert extraction_method == "ocr" (not just readable is False) so this
+    # test can only pass if OCR genuinely ran and found no usable text --
+    # not if Tesseract was simply unavailable (which would silently swallow
+    # TesseractNotFoundError and leave extraction_method as None).
+    assert result.extraction_method == "ocr"
     assert result.readable is False
 
 

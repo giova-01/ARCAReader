@@ -14,7 +14,7 @@ class FieldExtractionResult(NamedTuple):
 
 def _parse_amount(raw: str) -> Optional[float]:
     raw = raw.strip()
-    if re.fullmatch(r"\d{1,3}(\.\d{3})*,\d{2}", raw) or re.fullmatch(r"\d+,\d{2}", raw):
+    if re.fullmatch(r"\d{1,3}(\.\d{3})*,\d{1,2}", raw) or re.fullmatch(r"\d+,\d{1,2}", raw):
         normalized = raw.replace(".", "").replace(",", ".")
     else:
         normalized = raw.replace(",", "")

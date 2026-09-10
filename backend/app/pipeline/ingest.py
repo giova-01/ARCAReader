@@ -1,7 +1,8 @@
 # backend/app/pipeline/ingest.py
+import io
 from typing import Literal, NamedTuple, Optional
 
-import fitz
+import pymupdf as fitz
 import pytesseract
 from PIL import Image
 from pytesseract import Output
@@ -44,8 +45,6 @@ def rasterize_and_ocr_pdf(doc: "fitz.Document") -> tuple[str, float]:
 
 
 def ocr_image(image_bytes: bytes) -> tuple[str, float]:
-    import io
-
     image = Image.open(io.BytesIO(image_bytes))
     return _image_to_text_and_confidence(image)
 

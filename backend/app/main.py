@@ -2,6 +2,7 @@
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import MAX_UPLOAD_SIZE_BYTES
 from app.models.invoice import ExtractionResult
 from app.pipeline.extract_fields import extract_fields
 from app.pipeline.ingest import ingest_document
@@ -22,6 +23,9 @@ async def extract(file: UploadFile = File(...)) -> ExtractionResult:
     file_bytes = await file.read()
     if not file.filename or not file_bytes:
         raise HTTPException(status_code=400, detail="No se recibió ningún archivo.")
+
+    if len(file_bytes) > MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(status_code=413, detail="El archivo excede el tamaño máximo permitido.")
 
     ingest_result = ingest_document(file_bytes, file.filename)
 

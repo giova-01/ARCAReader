@@ -1,5 +1,5 @@
 # backend/tests/test_extract_fields.py
-from app.pipeline.extract_fields import extract_fields
+from app.pipeline.extract_fields import _parse_amount, extract_fields
 
 SAMPLE_TEXT = """
 Ejemplo SRL
@@ -66,3 +66,22 @@ def test_usd_currency_detected():
     text = "Total: US$ 500,00"
     result = extract_fields(text)
     assert result.data.moneda == "USD"
+
+
+def test_parse_amount_single_decimal_digit_is_not_corrupted():
+    # Regression test: "1234,5" is a valid Argentine decimal-comma amount
+    # (one decimal digit). It must NOT be treated as a thousands separator
+    # and turned into 12345.0.
+    assert _parse_amount("1234,5") == 1234.5
+
+
+def test_parse_amount_two_decimal_digits_still_correct():
+    assert _parse_amount("1234,50") == 1234.5
+
+
+def test_parse_amount_thousands_and_decimal_comma_still_correct():
+    assert _parse_amount("1.234,50") == 1234.5
+
+
+def test_parse_amount_malformed_returns_none():
+    assert _parse_amount("not-a-number") is None
