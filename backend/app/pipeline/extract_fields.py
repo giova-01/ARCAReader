@@ -2,7 +2,7 @@
 import re
 from typing import NamedTuple, Optional
 
-from app.config import CUIT_PATTERN, DATE_PATTERN
+from app.config import CAE_PATTERN, CUIT_PATTERN, DATE_PATTERN
 from app.models.invoice import FieldConfidence, InvoiceData, LineItem
 
 
@@ -40,7 +40,7 @@ def _find_tipo_comprobante(text: str) -> tuple[Optional[str], Optional[FieldConf
     match = re.search(r"FACTURA\s+([ABC])\b", text, re.IGNORECASE)
     if match:
         return match.group(1).upper(), "high"
-    match = re.search(r"COD.*?\b([ABC])\b", text, re.IGNORECASE)
+    match = re.search(r"COD\.?\s*\d*\s*([ABC])\b", text, re.IGNORECASE)
     if match:
         return match.group(1).upper(), "medium"
     return None, None
@@ -123,7 +123,7 @@ def _find_condicion_iva_receptor(text: str) -> tuple[Optional[str], Optional[Fie
 
 
 def _find_cae(text: str) -> tuple[Optional[str], Optional[FieldConfidence]]:
-    match = re.search(r"CAE\s*N?[°º]?\s*:?\s*(\d{14})", text, re.IGNORECASE)
+    match = re.search(rf"CAE\s*N?[°º]?\s*:?\s*({CAE_PATTERN})", text, re.IGNORECASE)
     if match:
         return match.group(1), "high"
     return None, None
