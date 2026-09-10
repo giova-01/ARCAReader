@@ -1,69 +1,43 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+// frontend/app/page.tsx
+"use client";
+
+import { useState } from "react";
+import UploadForm from "@/components/UploadForm";
+import ResultView from "@/components/ResultView";
+import HistoryList from "@/components/HistoryList";
+import type { ExtractionResult } from "@/lib/types";
+
+interface HistoryEntry {
+  fileName: string;
+  result: ExtractionResult;
+}
 
 export default function Home() {
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+  function handleResult(result: ExtractionResult, fileName: string) {
+    setHistory((prev) => [{ fileName, result }, ...prev]);
+    setSelectedIndex(0);
+  }
+
+  function handleSelect(index: number) {
+    setSelectedIndex(index);
+  }
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.tsx</code> file.
-          </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main className="page">
+      <h1>Extractor de Facturas ARCA</h1>
+      <UploadForm onResult={handleResult} />
+
+      <div className="layout">
+        {history.length > 0 && (
+          <HistoryList entries={history} selectedIndex={selectedIndex} onSelect={handleSelect} />
+        )}
+        {selectedIndex !== null && history[selectedIndex] && (
+          <ResultView result={history[selectedIndex].result} />
+        )}
+      </div>
+    </main>
   );
 }
