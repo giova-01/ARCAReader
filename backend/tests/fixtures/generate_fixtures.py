@@ -18,7 +18,7 @@ Pto. Vta.: 0003  Comp. Nro: 00012345
 Fecha de Emision: 15/03/2026
 
 Apellido y Nombre / Razon Social: Cliente Ejemplo
-CUIT: 27-98765432-8
+CUIT: 27-98765432-0
 Responsable Inscripto
 
 Cantidad Descripcion Precio Unit. Subtotal
@@ -40,7 +40,7 @@ Pto. Vta.: 0003  Comp. Nro: 00099999
 Fecha de Emision: 20/03/2026
 
 Apellido y Nombre / Razon Social: Cliente Discrepante
-CUIT: 27-98765432-8
+CUIT: 27-98765432-0
 Responsable Inscripto
 
 Cantidad Descripcion Precio Unit. Subtotal
