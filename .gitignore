@@ -1,5 +1,6 @@
 # Local generated and personal files
 *.md
+!README.md
 .claude/
 .agents/
 .codex/
