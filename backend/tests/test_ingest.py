@@ -24,6 +24,16 @@ def _make_blank_pdf_bytes() -> bytes:
     return data
 
 
+def _make_out_of_order_text_pdf_bytes() -> bytes:
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 144), "Importe Total: $ 12100,00")
+    page.insert_text((72, 72), "FACTURA A")
+    data = doc.tobytes()
+    doc.close()
+    return data
+
+
 def _make_text_image_bytes(text: str) -> bytes:
     img = Image.new("RGB", (400, 100), color="white")
     draw = ImageDraw.Draw(img)
@@ -47,6 +57,12 @@ def test_pdf_with_embedded_text_uses_pdf_text_method():
     assert result.readable is True
     assert "FACTURA" in result.text
     assert result.ocr_confidence is None
+
+
+def test_pdf_embedded_text_is_returned_in_visual_reading_order():
+    result = ingest_document(_make_out_of_order_text_pdf_bytes(), "invoice.pdf")
+
+    assert result.text.index("FACTURA A") < result.text.index("Importe Total")
 
 
 def test_scanned_pdf_falls_back_to_ocr():

@@ -5,6 +5,8 @@ from typing import NamedTuple, Optional
 from app.config import CAE_PATTERN, CUIT_PATTERN, DATE_PATTERN
 from app.models.invoice import FieldConfidence, InvoiceData, LineItem
 
+_CUIT_CANDIDATE_PATTERN = rf"(?<!\d)(?:{CUIT_PATTERN}|\d{{11}})(?!\d)"
+
 
 class FieldExtractionResult(NamedTuple):
     data: InvoiceData
@@ -36,8 +38,20 @@ def _to_iso_date(ddmmyyyy: str) -> Optional[str]:
     return f"{yyyy}-{mm}-{dd}"
 
 
+def _normalize_cuit(raw: str) -> str:
+    digits = raw.replace("-", "")
+    return f"{digits[:2]}-{digits[2:10]}-{digits[10]}"
+
+
+def _first_visual_column(raw: str) -> str:
+    return re.split(r"\s{2,}", raw.strip(), maxsplit=1)[0]
+
+
 def _find_tipo_comprobante(text: str) -> tuple[Optional[str], Optional[FieldConfidence]]:
     match = re.search(r"FACTURA\s+([ABC])\b", text, re.IGNORECASE)
+    if match:
+        return match.group(1).upper(), "high"
+    match = re.search(r"\b([ABC])\s+FACTURA\b", text, re.IGNORECASE)
     if match:
         return match.group(1).upper(), "high"
     match = re.search(r"COD\.?\s*\d*\s*([ABC])\b", text, re.IGNORECASE)
@@ -47,7 +61,11 @@ def _find_tipo_comprobante(text: str) -> tuple[Optional[str], Optional[FieldConf
 
 
 def _find_punto_venta(text: str) -> tuple[Optional[str], Optional[FieldConfidence]]:
-    match = re.search(r"(?:Pto\.?\s*Vta\.?|P\.V\.)\s*:?\s*(\d{4,5})", text, re.IGNORECASE)
+    match = re.search(
+        r"(?:Pto\.?\s*Vta\.?|P\.V\.|Punto\s+de\s+Venta)\s*:?\s*(\d{4,5})",
+        text,
+        re.IGNORECASE,
+    )
     if match:
         return match.group(1), "high"
     return None, None
@@ -76,26 +94,48 @@ def _find_fecha_emision(text: str) -> tuple[Optional[str], Optional[FieldConfide
 
 def _find_cuit_emisor(text: str) -> tuple[Optional[str], Optional[FieldConfidence]]:
     half = text[: len(text) // 2]
-    match = re.search(CUIT_PATTERN, half)
+    labeled_pattern = rf"\bCUIT\s*:?\s*({_CUIT_CANDIDATE_PATTERN})"
+    match = re.search(labeled_pattern, half, re.IGNORECASE)
     if match:
-        return match.group(0), "high"
-    match = re.search(CUIT_PATTERN, text)
+        return _normalize_cuit(match.group(1)), "high"
+    match = re.search(labeled_pattern, text, re.IGNORECASE)
     if match:
-        return match.group(0), "medium"
+        return _normalize_cuit(match.group(1)), "medium"
+    match = re.search(CUIT_PATTERN, half) or re.search(CUIT_PATTERN, text)
+    if match:
+        return _normalize_cuit(match.group(0)), "medium"
     return None, None
 
 
 def _find_cuit_receptor(text: str) -> tuple[Optional[str], Optional[FieldConfidence]]:
     cuit_emisor, _ = _find_cuit_emisor(text)
+    labeled_pattern = rf"\bCUIT\s*:?\s*({_CUIT_CANDIDATE_PATTERN})"
+    for match in re.finditer(labeled_pattern, text, re.IGNORECASE):
+        candidate = _normalize_cuit(match.group(1))
+        if candidate != cuit_emisor:
+            return candidate, "high"
     for match in re.finditer(CUIT_PATTERN, text):
-        if match.group(0) != cuit_emisor:
-            return match.group(0), "high"
+        candidate = _normalize_cuit(match.group(0))
+        if candidate != cuit_emisor:
+            return candidate, "medium"
     return None, None
 
 
 def _find_razon_social_emisor(text: str) -> tuple[Optional[str], Optional[FieldConfidence]]:
+    labeled_match = re.search(
+        r"^\s*Raz[oó]n\s+Social\s*:[ \t]*([^\n]+)",
+        text,
+        re.IGNORECASE | re.MULTILINE,
+    )
+    if labeled_match:
+        value = _first_visual_column(labeled_match.group(1))
+        if value:
+            return value, "high"
+
     half = text[: len(text) // 2]
-    match = re.search(CUIT_PATTERN, half) or re.search(CUIT_PATTERN, text)
+    match = re.search(_CUIT_CANDIDATE_PATTERN, half) or re.search(
+        _CUIT_CANDIDATE_PATTERN, text
+    )
     if not match:
         return None, None
     lines = text.split("\n")
@@ -109,9 +149,17 @@ def _find_razon_social_emisor(text: str) -> tuple[Optional[str], Optional[FieldC
 
 
 def _find_razon_social_receptor(text: str) -> tuple[Optional[str], Optional[FieldConfidence]]:
-    match = re.search(r"(?:Apellido\s+y\s+Nombre|Raz[oó]n\s+Social)\s*(?:/\s*Raz[oó]n\s+Social)?\s*:?\s*([^\n]+)", text, re.IGNORECASE)
+    match = re.search(
+        r"Apellido\s+y\s+Nombre\s*(?:/\s*Raz[oó]n\s+Social)?\s*:[ \t]*([^\n]+)",
+        text,
+        re.IGNORECASE,
+    )
+    if not match:
+        match = re.search(
+            r"Raz[oó]n\s+Social\s*:[ \t]*([^\n]+)", text, re.IGNORECASE
+        )
     if match:
-        return match.group(1).strip(), "high"
+        return _first_visual_column(match.group(1)), "high"
     return None, None
 
 
@@ -158,7 +206,11 @@ def _find_amount_near_label(text: str, label_pattern: str) -> tuple[Optional[flo
 
 
 def _parse_items(text: str) -> tuple[list[LineItem], bool]:
-    header_match = re.search(r"Cantidad\s+Descripci[oó]n.*?Subtotal", text, re.IGNORECASE | re.DOTALL)
+    header_match = re.search(
+        r"(?:Cantidad\s+Descripci[oó]n|Producto\s*/\s*Servicio\s+Cantidad).*?Subtotal",
+        text,
+        re.IGNORECASE | re.DOTALL,
+    )
     if not header_match:
         return [], False
 
@@ -167,22 +219,34 @@ def _parse_items(text: str) -> tuple[list[LineItem], bool]:
     table_text = remainder[: stop_match.start()] if stop_match else remainder
 
     line_pattern = re.compile(r"^(\d+(?:[.,]\d+)?)\s+(.+?)\s+([\d.,]+)\s+([\d.,]+)\s*$")
+    positioned_line_pattern = re.compile(
+        r"^(.+?)\s{2,}(\d+(?:[.,]\d+)?)\s+(.+?)\s+"
+        r"([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s*$"
+    )
     items: list[LineItem] = []
     for line in table_text.split("\n"):
         line = line.strip()
         if not line:
             continue
         match = line_pattern.match(line)
-        if not match:
-            continue
-        cantidad = _parse_amount(match.group(1))
-        precio_unitario = _parse_amount(match.group(3))
-        subtotal_linea = _parse_amount(match.group(4))
+        if match:
+            descripcion = match.group(2)
+            cantidad = _parse_amount(match.group(1))
+            precio_unitario = _parse_amount(match.group(3))
+            subtotal_linea = _parse_amount(match.group(4))
+        else:
+            positioned_match = positioned_line_pattern.match(line)
+            if not positioned_match:
+                continue
+            descripcion = positioned_match.group(1)
+            cantidad = _parse_amount(positioned_match.group(2))
+            precio_unitario = _parse_amount(positioned_match.group(4))
+            subtotal_linea = _parse_amount(positioned_match.group(7))
         if cantidad is None or precio_unitario is None or subtotal_linea is None:
             continue
         items.append(
             LineItem(
-                descripcion=match.group(2).strip(),
+                descripcion=descripcion.strip(),
                 cantidad=cantidad,
                 precio_unitario=precio_unitario,
                 subtotal_linea=subtotal_linea,

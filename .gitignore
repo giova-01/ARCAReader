@@ -1,0 +1,9 @@
+# Local generated and personal files
+*.md
+.claude/
+.agents/
+.codex/
+.cursor/
+.cursorrules
+generar_respuestas_word.py
+Respuestas_Prueba_Tecnica_IA.docx

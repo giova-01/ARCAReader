@@ -18,7 +18,7 @@ class IngestResult(NamedTuple):
 
 
 def extract_pdf_text(doc: "fitz.Document") -> str:
-    return "\n".join(page.get_text() for page in doc)
+    return "\n".join(page.get_text(sort=True) for page in doc)
 
 
 def _image_to_text_and_confidence(image: Image.Image) -> tuple[str, float]:

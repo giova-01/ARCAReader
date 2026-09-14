@@ -24,6 +24,30 @@ CAE N°: 12345678901234
 Fecha de Vto. de CAE: 25/03/2026
 """
 
+POSITION_SORTED_ARCA_TEXT = """
+ORIGINAL
+PROVEEDOR EJEMPLO S.R.L.   C   FACTURA
+COD. 011
+Punto de Venta: 00001   Comp. Nro: 00000022
+
+Razón Social: PROVEEDOR EJEMPLO S.R.L.                    Fecha de Emisión: 11/09/2026
+Domicilio Comercial: Calle Falsa 123                      CUIT: 20123456789
+Condición frente al IVA: Responsable Monotributo
+
+CUIT: 27987654321        Apellido y Nombre / Razón Social: CLIENTE EJEMPLO S.A.
+Condición frente al IVA: IVA Responsable Inscripto
+
+Código   Producto / Servicio   Cantidad   U. Medida   Precio Unit.   % Bonif   Imp. Bonif.   Subtotal
+Servicio de desarrollo de software   1,00   unidades   714219,00   0,00   0,00   714219,00
+
+Subtotal: $ 714219,00
+Importe Otros Tributos: $ 0,00
+Importe Total: $ 714219,00
+
+CAE N°: 86372596854584
+Fecha de Vto. de CAE: 21/09/2026
+"""
+
 
 def test_extracts_full_header_with_high_confidence():
     result = extract_fields(SAMPLE_TEXT)
@@ -51,6 +75,44 @@ def test_parses_items_table():
     assert result.data.items[0].descripcion == "Servicio de consultoría"
     assert result.data.items[0].cantidad == 1.0
     assert result.data.items[0].subtotal_linea == 10000.0
+
+
+def test_extracts_header_from_position_sorted_arca_text():
+    result = extract_fields(POSITION_SORTED_ARCA_TEXT)
+
+    assert result.data.tipo_comprobante == "C"
+    assert result.data.punto_venta == "00001"
+    assert result.data.numero_comprobante == "00000022"
+    assert result.data.cuit_emisor == "20-12345678-9"
+    assert result.data.razon_social_emisor == "PROVEEDOR EJEMPLO S.R.L."
+    assert result.data.cuit_receptor == "27-98765432-1"
+    assert result.data.razon_social_receptor == "CLIENTE EJEMPLO S.A."
+
+
+def test_ignores_unlabeled_phone_number_before_issuer_cuit():
+    text = """
+    FACTURA C
+    Teléfono: 11345678901
+    Razón Social: PROVEEDOR EJEMPLO S.R.L.
+    CUIT: 20123456789
+    CUIT: 27987654321    Apellido y Nombre / Razón Social: CLIENTE EJEMPLO S.A.
+    """
+
+    result = extract_fields(text)
+
+    assert result.data.cuit_emisor == "20-12345678-9"
+    assert result.data.cuit_receptor == "27-98765432-1"
+
+
+def test_parses_items_from_position_sorted_arca_text():
+    result = extract_fields(POSITION_SORTED_ARCA_TEXT)
+
+    assert result.items_parsed is True
+    assert len(result.data.items) == 1
+    assert result.data.items[0].descripcion == "Servicio de desarrollo de software"
+    assert result.data.items[0].cantidad == 1.0
+    assert result.data.items[0].precio_unitario == 714219.0
+    assert result.data.items[0].subtotal_linea == 714219.0
 
 
 def test_missing_fields_return_none_not_guessed():
